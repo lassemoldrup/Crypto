@@ -52,5 +52,6 @@ pub fn hash_pair(left: &[u8], right: &[u8]) -> U256 {
     let mut sha = Sha256::new();
     sha.update(left);
     sha.update(right);
-    sha.finalize()
+    let bytes: [u8; 32] = sha.finalize().into();
+    bytes.into()
 }
