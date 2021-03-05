@@ -1,56 +1,75 @@
-use std::convert::TryInto;
+use std::convert::TryFrom;
 
+use sha2::{Sha256, Digest};
 use rand_hc::Hc128Rng;
 use rand::{SeedableRng, RngCore};
-use sha2::{Sha256, Digest};
-
-use crate::SignatureScheme;
-use crate::u256::U256;
 use bitvec::prelude::{BitView, Lsb0};
 
+use crate::SignatureScheme;
+use crate::u256::{U256, hash};
 
-pub struct Key(Box<[(U256, U256)]>);
+#[derive(Clone, PartialEq)]
+pub struct Key(Box<[u8]>);
 
 impl Key {
-    fn gen_private(msg_len: usize) -> Self {
+    fn gen_private(msg_len: usize, seed: Option<U256>) -> Self {
         // Get message length in bits
         let msg_len = msg_len * 8;
 
-        let mut rng = Hc128Rng::from_entropy();
+        let mut rng = match seed {
+            None => Hc128Rng::from_entropy(),
+            Some(seed) => Hc128Rng::from_seed(*seed.as_ref())
+        };
 
-        let result = (0..msg_len).map(|_| {
-            let mut key1 = [0; 32];
-            let mut key2 = [0; 32];
-            rng.fill_bytes(&mut key1);
-            rng.fill_bytes(&mut key2);
-            (U256::from(key1), U256::from(key2))
-        })
-            .collect();
+        let mut result = vec![0; msg_len * 64];
+        rng.fill_bytes(&mut result[..]);
+
+        Self(result.into_boxed_slice())
+    }
+
+    fn gen_public(private: &Self) -> Self {
+        let mut result = private.0.clone();
+
+        result.chunks_exact_mut(32)
+            .for_each(|k| k.copy_from_slice(Sha256::digest(k).as_slice()));
 
         Self(result)
     }
 
-    fn gen_public(private: &Self) -> Self {
-        let result = private.0.iter()
-            .map(|(k1, k2)| (hash(k1.as_bytes()), hash(k2.as_bytes())))
-            .collect();
+    fn get(&self, idx: usize) -> (U256, U256) {
+        let byte_idx = idx * 64;
+        (U256::try_from(&self.0[byte_idx..byte_idx + 32]).unwrap(),
+         U256::try_from(&self.0[byte_idx + 32..byte_idx + 64]).unwrap())
+    }
 
-        Self(result)
+    fn len(&self) -> usize {
+        self.0.len() / (64 * 8)
+    }
+}
+
+impl AsRef<[u8]> for Key {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
 
 pub struct Signature(Box<[U256]>);
 
+impl Signature {
+    fn len(&self) -> usize {
+        self.0.len() / 8
+    }
+}
 
-pub struct Lamport;
+
+pub struct Lamport {
+    msg_len: usize,
+}
 
 impl Lamport {
-    fn gen_keys(msg_len: usize) -> (Key, Key) {
-        let private = Key::gen_private(msg_len);
-        let public = Key::gen_public(&private);
-
-        (private, public)
+    pub fn new(msg_len: usize) -> Self {
+        Self { msg_len }
     }
 }
 
@@ -59,39 +78,48 @@ impl SignatureScheme for Lamport {
     type Public = Key;
     type Signature = Signature;
 
-    fn sign(msg: &[u8], private: &Self::Private) -> Self::Signature {
+    fn gen_keys(&self, seed: Option<U256>) -> (Key, Key) {
+        let private = Key::gen_private(self.msg_len, seed);
+        let public = Key::gen_public(&private);
+
+        (private, public)
+    }
+
+    fn sign(&self, msg: &[u8], private: &Self::Private) -> Self::Signature {
+        assert_eq!(self.msg_len, private.len());
+
         let msg_bits = msg.view_bits::<Lsb0>();
 
         let sig = msg_bits.iter().by_val()
             .enumerate()
             .map(|(i, bit)| if bit {
-                private.0[i].1
+                private.get(i).1
             } else {
-                private.0[i].0
+                private.get(i).0
             })
             .collect();
 
         Signature(sig)
     }
 
-    fn verify(msg: &[u8], public: &Self::Public, sig: &Self::Signature) -> bool {
+    fn verify(&self, msg: &[u8], public: &Self::Public, sig: &Self::Signature) -> bool {
+        assert_eq!(self.msg_len, public.len());
+
+        if msg.len() != sig.len() {
+            return false;
+        }
+
         let msg_bits = msg.view_bits::<Lsb0>();
 
         msg_bits.iter().by_val()
             .enumerate()
-            .map(|(i, bit)| if bit {
-                (sig.0[i], public.0[i].1)
+            .map(|(i, bit)| (sig.0[i], if bit {
+                public.get(i).1
             } else {
-                (sig.0[i], public.0[i].0)
-            })
-            .all(|(s, k)| hash(s.as_bytes()) == k)
+                public.get(i).0
+            }))
+            .all(|(s, k)| hash(s.as_ref()) == k)
     }
-}
-
-fn hash(data: &[u8]) -> U256 {
-    Sha256::digest(data).as_slice()
-        .try_into()
-        .unwrap()
 }
 
 
@@ -103,10 +131,12 @@ mod tests {
     fn it_works() {
         let msg = b"My OS update";
 
-        let (private, public) = Lamport::gen_keys(msg.len());
+        let lamport = Lamport::new(64);
+        let (private, public) = lamport.gen_keys(None);
 
-        let sig = Lamport::sign(msg, &private);
+        let sig = lamport.sign(msg, &private);
 
-        assert!(Lamport::verify(msg, &public, &sig))
+        assert!(lamport.verify(msg, &public, &sig));
+        assert!(!lamport.verify(b"My OS apdate", &public, &sig));
     }
 }
