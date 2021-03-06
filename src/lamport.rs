@@ -1,15 +1,16 @@
-use std::convert::TryFrom;
+use std::ops::Index;
 
-use sha2::{Sha256, Digest};
 use rand_hc::Hc128Rng;
 use rand::{SeedableRng, RngCore};
 use bitvec::prelude::{BitView, Lsb0};
+use bytemuck::{cast_slice, cast_slice_mut};
 
 use crate::SignatureScheme;
-use crate::u256::{U256, hash};
+use crate::U256;
+use crate::hash::hash;
 
 #[derive(Clone, PartialEq)]
-pub struct Key(Box<[u8]>);
+pub struct Key(Box<[[U256; 2]]>);
 
 impl Key {
     fn gen_private(msg_len: usize, seed: Option<U256>) -> Self {
@@ -18,38 +19,43 @@ impl Key {
 
         let mut rng = match seed {
             None => Hc128Rng::from_entropy(),
-            Some(seed) => Hc128Rng::from_seed(*seed.as_ref())
+            Some(seed) => Hc128Rng::from_seed(seed)
         };
 
-        let mut result = vec![0; msg_len * 64];
-        rng.fill_bytes(&mut result[..]);
+        let mut result = vec![[[0u8; 32]; 2]; msg_len];
+        rng.fill_bytes(cast_slice_mut(&mut result[..]));
 
         Self(result.into_boxed_slice())
     }
 
     fn gen_public(private: &Self) -> Self {
-        let mut result = private.0.clone();
+        let mut result = private.clone();
 
-        result.chunks_exact_mut(32)
-            .for_each(|k| k.copy_from_slice(Sha256::digest(k).as_slice()));
+        for keys in result.0.iter_mut() {
+            keys[0] = hash(keys[0]);
+            keys[1] = hash(keys[1]);
+        }
 
-        Self(result)
+        result
     }
 
-    fn get(&self, idx: usize) -> (U256, U256) {
-        let byte_idx = idx * 64;
-        (U256::try_from(&self.0[byte_idx..byte_idx + 32]).unwrap(),
-         U256::try_from(&self.0[byte_idx + 32..byte_idx + 64]).unwrap())
-    }
-
+    /// Length in signable bytes
     fn len(&self) -> usize {
-        self.0.len() / (64 * 8)
+        self.0.len() / 8
     }
 }
 
 impl AsRef<[u8]> for Key {
     fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
+        cast_slice(&*self.0)
+    }
+}
+
+impl Index<usize> for Key {
+    type Output = [U256; 2];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
@@ -57,8 +63,17 @@ impl AsRef<[u8]> for Key {
 pub struct Signature(Box<[U256]>);
 
 impl Signature {
+    /// Length in signed bytes
     fn len(&self) -> usize {
         self.0.len() / 8
+    }
+}
+
+impl Index<usize> for Signature {
+    type Output = U256;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
@@ -87,16 +102,13 @@ impl SignatureScheme for Lamport {
 
     fn sign(&self, msg: &[u8], private: &Self::Private) -> Self::Signature {
         assert_eq!(self.msg_len, private.len());
+        assert!(msg.len() <= self.msg_len);
 
         let msg_bits = msg.view_bits::<Lsb0>();
 
         let sig = msg_bits.iter().by_val()
             .enumerate()
-            .map(|(i, bit)| if bit {
-                private.get(i).1
-            } else {
-                private.get(i).0
-            })
+            .map(|(i, bit)| private[i][bit as usize])
             .collect();
 
         Signature(sig)
@@ -104,6 +116,7 @@ impl SignatureScheme for Lamport {
 
     fn verify(&self, msg: &[u8], public: &Self::Public, sig: &Self::Signature) -> bool {
         assert_eq!(self.msg_len, public.len());
+        assert!(msg.len() <= self.msg_len);
 
         if msg.len() != sig.len() {
             return false;
@@ -113,12 +126,8 @@ impl SignatureScheme for Lamport {
 
         msg_bits.iter().by_val()
             .enumerate()
-            .map(|(i, bit)| (sig.0[i], if bit {
-                public.get(i).1
-            } else {
-                public.get(i).0
-            }))
-            .all(|(s, k)| hash(s.as_ref()) == k)
+            .map(|(i, bit)| (sig[i], public[i][bit as usize]))
+            .all(|(s, k)| hash(s) == k)
     }
 }
 

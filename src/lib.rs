@@ -1,8 +1,8 @@
-use crate::u256::U256;
-
+pub mod hash;
 pub mod lamport;
 pub mod goldreich;
-pub mod u256;
+
+pub type U256 = [u8; 32];
 
 pub trait SignatureScheme {
     type Private;
