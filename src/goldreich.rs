@@ -72,7 +72,7 @@ impl<'a, O: SignatureScheme> SignatureScheme for Goldreich<O>
         while idx != 0 {
             let node = self.get_node(*private, &idx);
 
-            let parent_idx = idx - 1 / 2;
+            let parent_idx = (idx - 1) / 2;
             let tmp = Integer::from(&parent_idx * 2);
             let left_sibling = self.get_node(*private, &Integer::from(&tmp + 1));
             let right_sibling = self.get_node(*private, &(tmp + 2));
@@ -126,7 +126,7 @@ mod tests {
         let msg2 = b"My important message";
 
         let lamport = Lamport::new(64);
-        let goldreich = Goldreich::new(256, lamport);
+        let goldreich = Goldreich::new(100, lamport);
 
         let (private, public) = goldreich.gen_keys(None);
 
