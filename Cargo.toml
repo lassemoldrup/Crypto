@@ -12,3 +12,5 @@ getrandom = "0.2.2"
 rand_hc = "0.3.0"
 rand = "0.8.3"
 bitvec = "0.21.0"
+bytemuck = "1.5.1"
+rug = { version = "1.11.0", features = [ "integer", "rand" ], default-features = false }
