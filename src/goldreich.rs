@@ -27,7 +27,7 @@ impl<O: SignatureScheme> Goldreich<O>
 }
 
 impl<O: SignatureScheme> Goldreich<O> {
-    fn new(tree_height: usize, ots_scheme: O) -> Self {
+    pub fn new(tree_height: usize, ots_scheme: O) -> Self {
         assert!(tree_height >= 1);
 
         Self {
@@ -126,7 +126,7 @@ mod tests {
         let msg2 = b"My important message";
 
         let lamport = Lamport::new(64);
-        let goldreich = Goldreich::new(100, lamport);
+        let goldreich = Goldreich::new(512, lamport);
 
         let (private, public) = goldreich.gen_keys(None);
 

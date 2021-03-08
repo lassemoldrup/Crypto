@@ -1,9 +1,6 @@
 use sha2::{Sha256, Digest};
 
 use crate::U256;
-/*pub fn hash(data: &[u8]) -> U256 {
-    Sha256::digest(data).into()
-}*/
 
 pub fn hash(data: impl AsRef<[u8]>) -> U256 {
     Sha256::digest(data.as_ref()).into()

@@ -1,6 +1,7 @@
 pub mod hash;
 pub mod lamport;
 pub mod goldreich;
+pub mod merkle;
 
 pub type U256 = [u8; 32];
 
