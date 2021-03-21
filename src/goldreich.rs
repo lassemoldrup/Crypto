@@ -1,8 +1,7 @@
-use getrandom::getrandom;
-
 use rug::Integer;
 use rug::integer::Order;
 use rug::rand::RandState;
+use rand::prelude::{Rng, SeedableRng, StdRng};
 
 use crate::{SignatureScheme, U256};
 use crate::hash::hash_pair;
@@ -43,11 +42,10 @@ impl<'a, O: SignatureScheme> SignatureScheme for Goldreich<O>
     type Signature = Signature<O>;
 
     fn gen_keys(&self, seed: Option<U256>) -> (Self::Private, Self::Public) {
-        let mut private = [0; 32];
-        match seed {
-            None => getrandom(&mut private).unwrap(),
-            Some(seed) => private = seed,
-        }
+        let private = match seed {
+            None => StdRng::from_entropy().gen(),
+            Some(seed) => StdRng::from_seed(seed).gen(),
+        };
 
         let root = self.get_node(private, &Integer::from(0));
         let left_public = self.get_node(private, &Integer::from(1)).1;
@@ -126,7 +124,7 @@ mod tests {
         let msg2 = b"My important message";
 
         let lamport = Lamport::new(64);
-        let goldreich = Goldreich::new(512, lamport);
+        let goldreich = Goldreich::new(256, lamport);
 
         let (private, public) = goldreich.gen_keys(None);
 
