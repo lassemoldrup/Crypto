@@ -1,3 +1,5 @@
+#![feature(num_as_ne_bytes)]
+
 pub mod hash;
 pub mod lamport;
 pub mod goldreich;

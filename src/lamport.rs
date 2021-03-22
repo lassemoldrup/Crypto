@@ -78,6 +78,7 @@ impl Index<usize> for Signature {
 }
 
 
+#[derive(Copy, Clone)]
 pub struct Lamport {
     msg_len: usize,
 }

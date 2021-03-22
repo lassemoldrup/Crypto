@@ -117,7 +117,7 @@ mod tests {
         let msg2 = b"My important message";
 
         let lamport = Lamport::new(64);
-        let merkle = Merkle::new(12, lamport);
+        let merkle = Merkle::new(6, lamport);
 
         let (mut private, public) = merkle.gen_keys(None);
 
