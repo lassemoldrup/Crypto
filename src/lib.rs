@@ -1,10 +1,9 @@
-#![feature(num_as_ne_bytes)]
-
 pub mod hash;
 pub mod lamport;
 pub mod goldreich;
 pub mod merkle;
 pub mod sphincs;
+pub mod winternitz;
 
 pub type U256 = [u8; 32];
 

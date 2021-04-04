@@ -7,6 +7,7 @@ use rug::integer::Order;
 use rug::rand::RandState;
 use rug::ops::Pow;
 use sha2::{Sha256, Digest};
+use bytemuck::bytes_of;
 
 type MerklePublic<O> = <Merkle<O> as SignatureScheme>::Public;
 type MerkleSignature<O> = <Merkle<O> as SignatureScheme>::Signature;
@@ -45,7 +46,7 @@ impl<O: SignatureScheme + Clone, F: SignatureScheme> Sphincs<O, F>
         hasher.update(&private);
         hasher.update(&idx.to_digits(Order::Lsf));
         hasher.update(&vec![0u8; padding]);
-        hasher.update(depth.as_ne_bytes());
+        hasher.update(bytes_of(&depth));
         let tree_seed = hasher.finalize().into();
 
         let (private, public) = self.merkle.gen_keys(Some(tree_seed));
