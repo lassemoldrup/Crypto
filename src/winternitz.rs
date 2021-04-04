@@ -1,8 +1,20 @@
-use crate::{SignatureScheme, U256};
-use rand::prelude::{StdRng, SeedableRng};
-use crate::hash::{hash, hash_n};
+use bytemuck::bytes_of;
+use rand::prelude::{SeedableRng, StdRng};
 use rand::RngCore;
 
+use crate::{SignatureScheme, U256};
+use crate::hash::{hash, hash_n};
+
+pub struct Key([U256; 32]);
+
+impl AsRef<[u8]> for Key {
+    fn as_ref(&self) -> &[u8] {
+        bytes_of(&self.0)
+    }
+}
+
+
+#[derive(Clone, Copy)]
 pub struct Winternitz;
 
 impl Winternitz {
@@ -12,9 +24,9 @@ impl Winternitz {
 }
 
 impl SignatureScheme for Winternitz {
-    type Private = [U256; 32];
-    type Public = [U256; 32];
-    type Signature = [U256; 32];
+    type Private = Key;
+    type Public = Key;
+    type Signature = Key;
 
     fn gen_keys(&self, seed: Option<U256>) -> (Self::Private, Self::Public) {
         let mut rng = match seed {
@@ -32,21 +44,22 @@ impl SignatureScheme for Winternitz {
             *pk = hash_n(private[i], 256);
         }
 
-        (private, public)
+        (Key(private), Key(public))
     }
 
     fn sign(&self, msg: &[u8], private: &Self::Private) -> Self::Signature {
         let mut sig = [[0; 32]; 32];
         for (i, &byte) in hash(msg).iter().enumerate() {
             let num_hashes = 256 - byte as usize;
-            sig[i] = hash_n(private[i], num_hashes);
+            sig[i] = hash_n(private.0[i], num_hashes);
         }
-        sig
+
+        Key(sig)
     }
 
     fn verify(&self, msg: &[u8], public: &Self::Public, sig: &Self::Signature) -> bool {
         hash(msg).iter().enumerate()
-            .all(|(i, &byte)| public[i] == hash_n(sig[i], byte as usize))
+            .all(|(i, &byte)| public.0[i] == hash_n(sig.0[i], byte as usize))
     }
 }
 

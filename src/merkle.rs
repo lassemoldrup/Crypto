@@ -1,7 +1,8 @@
-use crate::{SignatureScheme, U256};
-use crate::hash::{hash_pair, hash};
 use bytemuck::bytes_of;
 use rand::prelude::{Rng, SeedableRng, StdRng};
+
+use crate::{SignatureScheme, U256};
+use crate::hash::{hash, hash_pair};
 
 pub struct Signature<O: SignatureScheme> {
     leaf_idx: usize,
@@ -108,8 +109,9 @@ impl<O: SignatureScheme> SignatureScheme for Merkle<O>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::lamport::Lamport;
+
+    use super::*;
 
     #[test]
     fn it_works() {

@@ -1,13 +1,14 @@
-use crate::{SignatureScheme, U256};
-use rand::prelude::{SeedableRng, Rng, StdRng};
-use crate::merkle::Merkle;
-use crate::hash::hash_pair;
+use bytemuck::bytes_of;
+use rand::prelude::{Rng, SeedableRng, StdRng};
 use rug::Integer;
 use rug::integer::Order;
-use rug::rand::RandState;
 use rug::ops::Pow;
-use sha2::{Sha256, Digest};
-use bytemuck::bytes_of;
+use rug::rand::RandState;
+use sha2::{Digest, Sha256};
+
+use crate::{SignatureScheme, U256};
+use crate::hash::hash_pair;
+use crate::merkle::Merkle;
 
 type MerklePublic<O> = <Merkle<O> as SignatureScheme>::Public;
 type MerkleSignature<O> = <Merkle<O> as SignatureScheme>::Signature;
@@ -126,17 +127,18 @@ impl<O: SignatureScheme + Clone, F: SignatureScheme> SignatureScheme for Sphincs
 
 #[cfg(test)]
 mod tests {
+    use crate::winternitz::Winternitz;
+
     use super::*;
-    use crate::lamport::Lamport;
 
     #[test]
     fn it_works() {
         let msg1 = b"My OS update";
         let msg2 = b"My important message";
 
-        let lamport = Lamport::new(20);
-        let fts = Merkle::new(2, lamport);
-        let sphincs = Sphincs::new(12, 5, Lamport::new(32), fts);
+        let ots = Winternitz::new();
+        let fts = Merkle::new(2, ots);
+        let sphincs = Sphincs::new(12, 5, ots, fts);
 
         let (private, public) = sphincs.gen_keys(None);
 

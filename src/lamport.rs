@@ -1,13 +1,13 @@
 use std::ops::Index;
 
-use rand_hc::Hc128Rng;
-use rand::{SeedableRng, RngCore};
 use bitvec::prelude::{BitView, Lsb0};
 use bytemuck::{cast_slice, cast_slice_mut};
+use rand::{RngCore, SeedableRng};
+use rand_hc::Hc128Rng;
 
+use crate::hash::hash;
 use crate::SignatureScheme;
 use crate::U256;
-use crate::hash::hash;
 
 #[derive(Clone, PartialEq)]
 pub struct Key(Box<[[U256; 2]]>);

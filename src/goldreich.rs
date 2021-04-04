@@ -1,7 +1,7 @@
+use rand::prelude::{Rng, SeedableRng, StdRng};
 use rug::Integer;
 use rug::integer::Order;
 use rug::rand::RandState;
-use rand::prelude::{Rng, SeedableRng, StdRng};
 
 use crate::{SignatureScheme, U256};
 use crate::hash::hash_pair;
@@ -115,8 +115,9 @@ impl<'a, O: SignatureScheme> SignatureScheme for Goldreich<O>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::lamport::Lamport;
+
+    use super::*;
 
     #[test]
     fn it_works() {
