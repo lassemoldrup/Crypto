@@ -2,7 +2,7 @@ use bytemuck::bytes_of;
 use rand::prelude::{Rng, SeedableRng, StdRng};
 
 use crate::{SignatureScheme, U256};
-use crate::hash::{hash, hash_pair};
+use crate::util::{hash, hash_pair};
 
 pub struct Signature<O: SignatureScheme> {
     leaf_idx: usize,

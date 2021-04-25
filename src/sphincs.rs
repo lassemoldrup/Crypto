@@ -7,7 +7,7 @@ use rug::rand::RandState;
 use sha2::{Digest, Sha256};
 
 use crate::{SignatureScheme, U256};
-use crate::hash::hash_pair;
+use crate::util::{hash_pair, div_up};
 use crate::merkle::Merkle;
 
 type MerklePublic<O> = <Merkle<O> as SignatureScheme>::Public;
@@ -31,8 +31,7 @@ pub struct Sphincs<O, F> {
 impl<O: SignatureScheme + Clone, F: SignatureScheme> Sphincs<O, F>
     where <O as SignatureScheme>::Public: AsRef<[u8]>, <F as SignatureScheme>::Public: AsRef<[u8]> {
     fn new(depth: usize, sub_tree_height: usize, ots_scheme: O, fts_scheme: F) -> Self {
-        // Very ugly rounding up division
-        let idx_len = (((depth * sub_tree_height + 1) as f64 / 8.).ceil() + 0.001) as usize;
+        let idx_len = div_up(depth * sub_tree_height + 1, 8);
         let merkle = Merkle::new(sub_tree_height, ots_scheme.clone());
 
         Self {
@@ -136,7 +135,7 @@ mod tests {
         let msg1 = b"My OS update";
         let msg2 = b"My important message";
 
-        let ots = Winternitz::new();
+        let ots = Winternitz::new(16);
         let fts = Merkle::new(2, ots);
         let sphincs = Sphincs::new(12, 5, ots, fts);
 

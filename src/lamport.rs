@@ -5,7 +5,7 @@ use bytemuck::{cast_slice, cast_slice_mut};
 use rand::{RngCore, SeedableRng};
 use rand_hc::Hc128Rng;
 
-use crate::hash::hash;
+use crate::util::hash;
 use crate::SignatureScheme;
 use crate::U256;
 

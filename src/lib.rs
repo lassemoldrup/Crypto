@@ -1,4 +1,4 @@
-pub mod hash;
+pub mod util;
 pub mod lamport;
 pub mod goldreich;
 pub mod merkle;

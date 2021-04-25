@@ -4,7 +4,7 @@ use rug::integer::Order;
 use rug::rand::RandState;
 
 use crate::{SignatureScheme, U256};
-use crate::hash::hash_pair;
+use crate::util::hash_pair;
 
 pub struct Signature<O: SignatureScheme> {
     leaf_idx: Integer,
