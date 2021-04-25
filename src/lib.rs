@@ -4,6 +4,7 @@ pub mod goldreich;
 pub mod merkle;
 pub mod sphincs;
 pub mod winternitz;
+pub mod horst;
 
 pub type U256 = [u8; 32];
 
