@@ -102,7 +102,7 @@ impl SignatureScheme for Winternitz {
         for (&sk, count) in private.0.iter().zip(counts) {
             sig.push(hash_n(sk, count));
         }
-
+ 
         Key(sig.into_boxed_slice())
     }
 

@@ -129,6 +129,7 @@ mod tests {
     use crate::winternitz::Winternitz;
 
     use super::*;
+    use crate::horst::Horst;
 
     #[test]
     fn it_works() {
@@ -136,7 +137,7 @@ mod tests {
         let msg2 = b"My important message";
 
         let ots = Winternitz::new(16);
-        let fts = Merkle::new(2, ots);
+        let fts = Horst::new(16, 32);
         let sphincs = Sphincs::new(12, 5, ots, fts);
 
         let (private, public) = sphincs.gen_keys(None);
