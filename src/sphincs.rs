@@ -4,11 +4,12 @@ use rug::Integer;
 use rug::integer::Order;
 use rug::ops::Pow;
 use rug::rand::RandState;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 
 use crate::{SignatureScheme, U256};
 use crate::util::{hash_pair, div_up};
 use crate::merkle::Merkle;
+use std::convert::TryInto;
 
 type MerklePublic<O> = <Merkle<O> as SignatureScheme>::Public;
 type MerkleSignature<O> = <Merkle<O> as SignatureScheme>::Signature;
@@ -17,6 +18,7 @@ pub struct Signature<O: SignatureScheme, F: SignatureScheme>
     fts_public: F::Public,
     fts_sig: F::Signature,
     path: Box<[(MerklePublic<O>, MerkleSignature<O>)]>,
+    random: U256,
 }
 
 
@@ -57,33 +59,51 @@ impl<O: SignatureScheme + Clone, F: SignatureScheme> Sphincs<O, F>
         let seed = hash_pair(&private, &idx.to_digits(Order::Lsf));
         self.fts_scheme.gen_keys(Some(seed))
     }
+
+    // TODO: don't hard code this
+    fn transform_msg(msg: &[u8], random: U256) -> Box<[u8]> {
+        let mut hasher = Sha512::new();
+        hasher.update(random);
+        hasher.update(msg);
+        hasher.finalize().as_slice().into()
+    }
 }
 
 impl<O: SignatureScheme + Clone, F: SignatureScheme> SignatureScheme for Sphincs<O, F>
     where <O as SignatureScheme>::Public: AsRef<[u8]>, <F as SignatureScheme>::Public: AsRef<[u8]> {
-    type Private = U256;
+    type Private = (U256, U256);
     type Public = U256;
     type Signature = Signature<O, F>;
 
     fn gen_keys(&self, seed: Option<U256>) -> (Self::Private, Self::Public) {
-        let private = match seed {
-            None => StdRng::from_entropy().gen(),
-            Some(seed) => StdRng::from_seed(seed).gen(),
+        let mut rng = match seed {
+            None => StdRng::from_entropy(),
+            Some(seed) => StdRng::from_seed(seed),
         };
 
-        let public = self.get_sub_tree_keys(private, self.depth - 1, &Integer::new()).1;
+        let private = (rng.gen(), rng.gen());
+
+        let public = self.get_sub_tree_keys(private.0, self.depth - 1, &Integer::new()).1;
 
         (private, public)
     }
 
     fn sign(&self, msg: &[u8], private: &Self::Private) -> Self::Signature {
+        let (sk1, sk2) = *private;
+
         let num_sub_tree_leaves = 1 << self.sub_tree_height;
         let num_leaves = Integer::from(num_sub_tree_leaves).pow(self.depth as u32);
         let mut rand = RandState::new(); // Is this safe?
+        rand.seed(&Integer::from_digits(&[msg, &sk2].concat(), Order::Lsf));
         let fts_idx = Integer::random_below(num_leaves.clone(), &mut rand);
 
-        let (fts_private, fts_public) = self.get_fts_keys(*private, &fts_idx);
-        let fts_sig = self.fts_scheme.sign(msg, &fts_private);
+        let (fts_private, fts_public) = self.get_fts_keys(sk1, &fts_idx);
+
+        let random = Integer::from(Integer::random_bits(256, &mut rand)).to_digits(Order::Lsf)
+            .try_into().unwrap();
+        let msg = Self::transform_msg(msg, random);
+
+        let fts_sig = self.fts_scheme.sign(&msg, &fts_private);
 
         let mut node: Box<[u8]> = fts_public.as_ref().into();
         let mut path = Vec::with_capacity(self.depth);
@@ -92,7 +112,7 @@ impl<O: SignatureScheme + Clone, F: SignatureScheme> SignatureScheme for Sphincs
             let sub_tree_idx = idx.mod_u(num_sub_tree_leaves) as usize;
             idx /= num_sub_tree_leaves;
 
-            let (private, public) = self.get_sub_tree_keys(*private, depth, &idx);
+            let (private, public) = self.get_sub_tree_keys(sk1, depth, &idx);
             let sig = self.merkle.sign(&node, &(private, sub_tree_idx));
             path.push((public, sig));
 
@@ -103,11 +123,13 @@ impl<O: SignatureScheme + Clone, F: SignatureScheme> SignatureScheme for Sphincs
             fts_public,
             fts_sig,
             path: path.into_boxed_slice(),
+            random,
         }
     }
 
     fn verify(&self, msg: &[u8], public: &Self::Public, sig: &Self::Signature) -> bool {
-        if !self.fts_scheme.verify(msg, &sig.fts_public, &sig.fts_sig) {
+        let msg = Self::transform_msg(msg, sig.random);
+        if !self.fts_scheme.verify(&msg, &sig.fts_public, &sig.fts_sig) {
             return false;
         }
 
